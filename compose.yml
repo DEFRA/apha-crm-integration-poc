@@ -55,7 +55,7 @@ services:
   #   networks:
   #     - cdp-tenant
 
-  cdp-node-backend-template:
+  apha-crm-integration-poc:
     build:
       context: .
       target: development

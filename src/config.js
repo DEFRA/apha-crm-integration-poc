@@ -93,6 +93,29 @@ const config = convict({
       default: 'x-cdp-request-id',
       env: 'TRACING_HEADER'
     }
+  },
+  salesforce: {
+    baseUrl: {
+      doc: 'Salesforce instance base URL',
+      format: 'url',
+      nullable: true,
+      default: null,
+      env: 'SALESFORCE_BASE_URL'
+    },
+    clientId: {
+      doc: 'Salesforce connected app client identifier',
+      format: String,
+      nullable: true,
+      default: null,
+      env: 'SALESFORCE_CLIENT_ID'
+    },
+    clientSecret: {
+      doc: 'Salesforce connected app client secret',
+      format: String,
+      nullable: true,
+      default: null,
+      env: 'SALESFORCE_CLIENT_SECRET'
+    }
   }
 })
 

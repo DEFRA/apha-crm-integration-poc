@@ -1,3 +1,5 @@
+import 'dotenv/config'
+
 import convict from 'convict'
 import convictFormatWithValidator from 'convict-format-with-validator'
 

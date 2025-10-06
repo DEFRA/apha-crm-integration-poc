@@ -35,6 +35,8 @@
     "@hapi/hapi": "21.4.0",
     "aws-embedded-metrics": "4.2.0",
     "aws4": "1.13.2",
+    "cometd": "8.0.10",
+    "cometd-nodejs-client": "2.0.0",
     "convict": "6.2.4",
     "convict-format-with-validator": "6.2.0",
     "dotenv": "17.2.2",

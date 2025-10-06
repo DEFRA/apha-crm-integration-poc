@@ -1,8 +1,22 @@
 import Boom from '@hapi/boom'
 
+import { CometD } from 'cometd'
+import { adapt } from 'cometd-nodejs-client'
+
 import { config } from '../../config.js'
 
 const SALESFORCE_API_VERSION = 'v58.0'
+
+let isAdapted = false
+let startPromise
+let cometdClient
+
+function ensureAdapted() {
+  if (!isAdapted) {
+    adapt()
+    isAdapted = true
+  }
+}
 
 function getSalesforceConfig() {
   const baseUrl = config.get('salesforce.baseUrl')
@@ -16,6 +30,14 @@ function getSalesforceConfig() {
   }
 
   return { baseUrl, clientId, clientSecret }
+}
+
+function getListenerConfig() {
+  const enabled = config.get('salesforce.listenerEnabled')
+  const channel = config.get('salesforce.streamingChannel')
+  const apiVersion = config.get('salesforce.apiVersion')
+
+  return { enabled, channel, apiVersion }
 }
 
 async function parseJson(response) {
@@ -107,4 +129,117 @@ async function createCustomer(customerPayload, accessToken) {
   }
 }
 
-export { createCustomer, getAccessToken }
+async function startSalesforceListener(logger = console) {
+  const { enabled, channel, apiVersion } = getListenerConfig()
+
+  if (!enabled) {
+    return null
+  }
+
+  if (!channel) {
+    logger.warn(
+      'Salesforce listener is enabled but no channel is configured; skipping subscription'
+    )
+    return null
+  }
+
+  if (cometdClient) {
+    return cometdClient
+  }
+
+  if (startPromise) {
+    return startPromise
+  }
+
+  startPromise = (async () => {
+    const tokens = await getAccessToken()
+
+    if (!tokens?.access_token || !tokens?.instance_url) {
+      throw Boom.badImplementation(
+        'Salesforce access token response missing access_token or instance_url'
+      )
+    }
+
+    ensureAdapted()
+
+    const cometd = new CometD()
+    cometdClient = cometd
+
+    const version = apiVersion?.replace(/^\//, '') ?? 'v61.0'
+    const normalizedVersion = version.startsWith('v') ? version : `v${version}`
+    const url = `${tokens.instance_url}/cometd/${normalizedVersion}/`
+
+    cometd.configure({
+      url,
+      requestHeaders: { Authorization: `Bearer ${tokens.access_token}` },
+      appendMessageTypeToURL: false
+    })
+
+    // Salesforce requires long-polling transport
+    cometd.unregisterTransport('websocket')
+
+    const handshakeReply = await new Promise((resolve, reject) => {
+      cometd.handshake((reply) => {
+        if (reply?.successful) {
+          resolve(reply)
+          return
+        }
+
+        const error = Boom.badGateway('Salesforce CometD handshake failed', {
+          data: reply
+        })
+        reject(error)
+      })
+    })
+
+    logger.info(
+      {
+        handshake: handshakeReply,
+        channel
+      },
+      'Salesforce listener connected'
+    )
+
+    cometd.addListener('/meta/disconnect', (message) => {
+      logger.warn({ message }, 'Salesforce listener disconnected')
+    })
+
+    cometd.addListener('/meta/connect', (message) => {
+      if (!message.successful) {
+        logger.error({ message }, 'Salesforce listener connect error')
+      }
+    })
+
+    cometd.onListenerException = (exception, subscriptionHandle, message) => {
+      logger.error(
+        {
+          err: exception,
+          subscriptionHandle,
+          message
+        },
+        'Salesforce listener exception'
+      )
+    }
+
+    cometd.subscribe(channel, (message) => {
+      console.log(
+        'Event received and processed:',
+        JSON.stringify(message, null, 2)
+      )
+    })
+
+    return cometd
+  })()
+
+  try {
+    await startPromise
+  } catch (error) {
+    startPromise = null
+    cometdClient = null
+    throw error
+  }
+
+  return cometdClient
+}
+
+export { createCustomer, getAccessToken, startSalesforceListener }

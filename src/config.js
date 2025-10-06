@@ -117,6 +117,25 @@ const config = convict({
       nullable: true,
       default: null,
       env: 'SALESFORCE_CLIENT_SECRET'
+    },
+    apiVersion: {
+      doc: 'Salesforce API version used for streaming connections',
+      format: String,
+      default: 'v61.0',
+      env: 'SALESFORCE_API_VERSION'
+    },
+    listenerEnabled: {
+      doc: 'Enable Salesforce event listener',
+      format: Boolean,
+      default: false,
+      env: 'SALESFORCE_LISTENER_ENABLED'
+    },
+    streamingChannel: {
+      doc: 'Salesforce event channel to subscribe to',
+      format: String,
+      nullable: true,
+      default: null,
+      env: 'SALESFORCE_STREAMING_CHANNEL'
     }
   }
 })
